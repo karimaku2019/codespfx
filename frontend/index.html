@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>File & Attendance Upload</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+  <div id="root" class="w-full max-w-2xl p-4"></div>
+  <script type="text/javascript">
+    const { useState } = React;
+
+    function FileUpload() {
+      const [files, setFiles] = useState([]);
+      const [excelData, setExcelData] = useState(null);
+
+      function handleFiles(selected) {
+        const allowed = [
+          'application/pdf',
+          'application/vnd.ms-excel',
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'application/msword',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'image/png','image/jpeg','image/gif','image/bmp','image/webp'
+        ];
+        const filtered = Array.from(selected).filter(f => allowed.includes(f.type));
+        setFiles(filtered);
+        const excel = filtered.find(f => f.type.includes('spreadsheet') || f.type.includes('excel'));
+        if (excel) {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const workbook = XLSX.read(e.target.result, { type: 'binary' });
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+            setExcelData(rows);
+          };
+          reader.readAsBinaryString(excel);
+        } else {
+          setExcelData(null);
+        }
+      }
+
+      function onDrop(e) {
+        e.preventDefault();
+        handleFiles(e.dataTransfer.files);
+      }
+
+      function onSubmit() {
+        const formData = new FormData();
+        files.forEach(f => formData.append('files', f));
+        fetch('/api/files/upload', {
+          method: 'POST',
+          headers: { 'x-api-key': 'change-me' },
+          body: formData
+        });
+        if (excelData) {
+          const excelFile = files.find(f => f.type.includes('spreadsheet') || f.type.includes('excel'));
+          const form = new FormData();
+          form.append('file', excelFile);
+          fetch('/api/attendance/upload', {
+            method: 'POST',
+            headers: { 'x-api-key': 'change-me' },
+            body: form
+          });
+        }
+      }
+
+      return (
+        React.createElement('div', null,
+          React.createElement('div', {
+            className: 'border-2 border-dashed p-4 text-center mb-4 bg-white',
+            onDrop: onDrop,
+            onDragOver: e => e.preventDefault()
+          },
+            React.createElement('input', { type: 'file', multiple: true, className: 'mb-2', onChange: e => handleFiles(e.target.files) }),
+            React.createElement('p', null, 'Drag and drop files here')
+          ),
+          excelData && React.createElement('table', { className: 'table-auto w-full mb-4' },
+            excelData.map((row, i) => React.createElement('tr', { key: i },
+              row.map((cell, j) => React.createElement('td', { key: j, className: 'border px-2' }, cell))
+            ))
+          ),
+          React.createElement('button', { className: 'bg-blue-500 text-white px-4 py-2', onClick: onSubmit }, 'Upload')
+        )
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(FileUpload));
+  </script>
+</body>
+</html>
